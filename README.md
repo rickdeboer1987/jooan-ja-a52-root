@@ -73,6 +73,61 @@ Modified firmware with persistent root shell access. Flash this to get full root
 | Web check | `curl -k https://<IP>/backdoor.txt` |
 | Root password | `root` |
 
+## How to Flash
+
+### Method 1: Chip Programmer (confirmed working)
+
+This is the method we used. Requires opening the camera.
+
+**Hardware needed:**
+- CH341A USB programmer (~$5 on AliExpress)
+- SOIC-8 test clip (~$3) for in-circuit flashing without desoldering
+- [CH341A drivers](https://github.com/nickvdl/CH341-driver) (Windows)
+
+**Steps:**
+1. Open the camera case (4 screws under the rubber pads on the base)
+2. Locate the W25Q64 SPI flash chip (8-pin SOIC, near the edge of the PCB)
+3. Attach the SOIC-8 clip to the flash chip — make sure pin 1 aligns (dot on chip = red wire on clip)
+4. **Read the stock firmware first** as backup: `flashrom -p ch341a_spi -r stock_backup.bin` (or use AsProgrammer/NeoProgrammer GUI)
+5. Verify the read: read twice and compare MD5 hashes — they must match
+6. Flash the backdoored firmware: `flashrom -p ch341a_spi -w backdoored_v2.bin`
+7. Verify the write: read back and compare CRC32 = `0x66E90B6B`
+8. Remove clip, reassemble camera, power on
+9. Wait ~60 seconds for boot, then connect: `telnet <camera-ip> 23`
+
+**Tips:**
+- The clip connection can be flaky — if reads fail or return all 0xFF, reseat the clip
+- Always read before writing so you have a stock backup
+- Camera must be powered during in-circuit flashing (USB from programmer powers the chip)
+- If the camera doesn't boot, re-flash stock_firmware_a2r.bin to restore
+
+### Method 2: SD Card (untested — should work)
+
+The camera checks for firmware at `/mnt/sd_card/JOOAN_FW_PKG` on boot. This uses the same IronMan OTA format as the web upload.
+
+**This method cannot flash raw SPI images** like `backdoored_v2.bin`. It requires a properly formatted IronMan OTA package (see TODO section below). Once we build the OTA package:
+
+1. Format a microSD card as FAT32
+2. Copy the OTA package to the root of the SD card as `JOOAN_FW_PKG`
+3. Insert the SD card into the camera
+4. Power cycle the camera
+5. The camera will detect the file, apply the upgrade, and reboot
+6. Remove the SD card after reboot (otherwise it may re-flash every boot)
+
+**Status:** Waiting on OTA package build (see TODO below). The SD card path is confirmed in the firmware — `ipc_fwLocalUpGradeBySDcard` reads from this exact path.
+
+### Method 3: Web Upload (untested — should work)
+
+Upload through the camera's built-in web interface. Same IronMan OTA format as SD card.
+
+1. Open `https://<camera-ip>/` in a browser (accept the self-signed cert)
+2. Log in with default credentials: `admin` / `admin123`
+3. Navigate to the firmware upgrade page
+4. Upload the OTA package file
+5. Wait for the camera to apply and reboot (~2-3 minutes)
+
+**Status:** Waiting on OTA package build (see TODO below).
+
 ## Tools
 
 ### `tools/inject_backdoors_v2.py`
