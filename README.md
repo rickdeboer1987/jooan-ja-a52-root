@@ -115,6 +115,54 @@ Standard `zlib.crc32(data) & 0xFFFFFFFF` produces wrong values. Every JFFS2 node
 4. **First rootfs attempt** (`backdoored_full.bin`) — Windows tar extraction destroyed symlinks. Camera didn't boot.
 5. **Previous session firmware** (`backdoored_firmware.bin`) — Accidentally wrote modified data to kernel partition at 0x1B0000. Corrupted kernel, no boot.
 
+## TODO: Web Upload Root (No Chip Programmer)
+
+The current method requires a CH341A chip programmer + SOIC-8 clip to flash the SPI chip directly. The goal is to make this work through the **standard web firmware upload** so anyone can root their camera without hardware tools.
+
+### What we know
+
+The Jooan OTA format ("IronMan") is simple and **unsigned**:
+
+```
+Offset  Size    Content
+0x00    8       Magic: "jooan\0\0\0"
+0x08    8       Payload size (ASCII decimal, null-padded)
+0x10    48      Version string: "ver=5.2.31.29;ProductName=JA-A52"
+0x40    32      MD5 of payload (ASCII hex, optional)
+0x60    ...     SquashFS payload containing upgrade.sh
+```
+
+- The camera mounts the SquashFS and runs `upgrade.sh` **as root**
+- No cryptographic signature verification — only MD5 integrity check
+- Same format works for web upload (HTTPS :443) and SD card (`/mnt/sd_card/JOOAN_FW_PKG`)
+
+### What needs to happen
+
+1. **Map MTD devices** on the live camera (`cat /proc/mtd`) to determine which `/dev/mtdX` corresponds to rootfs, appfs, and config partitions
+2. **Build an OTA package** where `upgrade.sh` uses `flashcp` or `dd` to write our modified `rootfs_fixed.sqfs` and `appfs_fixed.sqfs` directly to the correct MTD partitions
+3. **Test version validation** — does the camera reject "downgrades" or accept any version string?
+4. **Test ProductName validation** — does it check against the device model or accept anything?
+5. **Package everything** into a single IronMan file users can upload through the standard Jooan web interface at `https://<camera-ip>/upgrade.html`
+
+### Why this should work
+
+- `upgrade.sh` executes as root with full system access
+- No signature checking — the camera only validates the IronMan header structure and optional MD5
+- The SquashFS payload can be any size (the 96-byte header contains the payload length)
+- We can embed our modified partition images inside the upgrade SquashFS alongside `upgrade.sh`
+
+### Estimated OTA package
+
+```
+IronMan header (96 bytes)
+└── SquashFS payload
+    ├── upgrade.sh          (flashes partitions via dd/flashcp)
+    ├── rootfs_fixed.sqfs   (~2.8 MB, modified rootfs with backdoors)
+    └── appfs_fixed.sqfs    (~3.1 MB, modified appfs with backdoors)
+```
+
+Total size: ~6 MB (fits within camera's RAM for upload processing)
+
 ## Hardware Required
 
 - CH341A USB programmer (or similar SPI programmer)
