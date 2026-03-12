@@ -206,13 +206,39 @@ mtd5: 00060000 00008000 "config"      ← target (JFFS2 persistence)
 mtd6: 00008000 00008000 "confbak"
 ```
 
+### Flash tools available on camera (confirmed)
+
+BusyBox v1.22.1 provides `flashcp`, `flash_eraseall`, and `dd`. The upgrade.sh would use:
+
+```sh
+#!/bin/sh
+# Extract embedded partition images
+cd /tmp/upgrade/mnt
+
+# Flash rootfs to mtd3
+flash_eraseall /dev/mtd3
+flashcp -v rootfs_fixed.sqfs /dev/mtd3
+
+# Flash appfs to mtd4
+flash_eraseall /dev/mtd4
+flashcp -v appfs_fixed.sqfs /dev/mtd4
+
+# Flash JFFS2 config to mtd5 (persistence layer)
+flash_eraseall /dev/mtd5
+flashcp -v config_backdoor.jffs2 /dev/mtd5
+
+echo "Root exploit applied. Rebooting..."
+reboot
+```
+
 ### What needs to happen
 
 1. ~~**Map MTD devices**~~ — DONE (see above)
-2. **Build an OTA package** where `upgrade.sh` uses `flashcp` or `dd` to write our modified squashfs images to `/dev/mtd3` (rootfs), `/dev/mtd4` (appfs), and `/dev/mtd5` (config)
-3. **Test version validation** — does the camera reject "downgrades" or accept any version string?
-4. **Test ProductName validation** — does it check against the device model or accept anything?
-5. **Package everything** into a single IronMan file users can upload through the standard Jooan web interface or SD card
+2. ~~**Confirm flash tools**~~ — DONE: `flashcp`, `flash_eraseall`, `dd` all present in busybox
+3. **Build an OTA package** with `upgrade.sh` + embedded partition images
+4. **Test version validation** — does the camera reject "downgrades" or accept any version string?
+5. **Test ProductName validation** — does it check against the device model or accept anything?
+6. **Package everything** into a single IronMan file users can upload through the standard Jooan web interface or SD card
 
 ### Why this should work
 
