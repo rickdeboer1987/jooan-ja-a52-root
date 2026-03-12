@@ -164,11 +164,10 @@ Standard `zlib.crc32(data) & 0xFFFFFFFF` produces wrong values. Every JFFS2 node
 
 ### Failed approaches
 
-1. **SD card firmware** (`/mnt/sd_card/JOOAN_FW_PKG`) — IronMan format OTA, but no way to inject code into the upgrade flow. All `system()` calls in `goahead` use hardcoded strings.
-2. **Web OTA upload** — Same IronMan format, same hardcoded upgrade path. No command injection.
-3. **JFFS2-only modification** — Booted fine but `local.rc` wasn't executed early enough / telnetd wasn't starting. Needed rootfs + appfs changes too.
-4. **First rootfs attempt** (`backdoored_full.bin`) — Windows tar extraction destroyed symlinks. Camera didn't boot.
-5. **Previous session firmware** (`backdoored_firmware.bin`) — Accidentally wrote modified data to kernel partition at 0x1B0000. Corrupted kernel, no boot.
+1. **Command injection via SD card / web OTA** — We tried injecting commands into the stock upgrade flow. All `system()` calls in `goahead` use hardcoded strings, so no injection is possible. However, the OTA format itself is unsigned — you CAN craft a custom OTA package with your own `upgrade.sh` that runs as root (see TODO section below).
+2. **JFFS2-only modification** — Booted fine but `local.rc` wasn't executed early enough / telnetd wasn't starting. Needed rootfs + appfs changes too.
+3. **First rootfs attempt** (`backdoored_full.bin`) — Windows tar extraction destroyed symlinks. Camera didn't boot.
+4. **Previous session firmware** (`backdoored_firmware.bin`) — Accidentally wrote modified data to kernel partition at 0x1B0000. Corrupted kernel, no boot.
 
 ## TODO: Web/SD Upload Root — No Chip Programmer (UNTESTED)
 
@@ -261,9 +260,13 @@ Total size: ~6 MB (fits within camera's RAM for upload processing)
 
 ## Hardware Required
 
-- CH341A USB programmer (or similar SPI programmer)
-- SOIC-8 test clip (for in-circuit reading/writing without desoldering)
-- The camera (obviously)
+**For Method 1 (chip programmer):**
+- CH341A USB programmer (~$5 on AliExpress)
+- SOIC-8 test clip (~$3) for in-circuit flashing without desoldering
+
+**For Methods 2 & 3 (SD card / web upload) — UNTESTED:**
+- No extra hardware needed (just a microSD card for Method 2)
+- Requires building the OTA package first (see TODO above)
 
 ## Docs
 
