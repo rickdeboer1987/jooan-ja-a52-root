@@ -170,7 +170,9 @@ Standard `zlib.crc32(data) & 0xFFFFFFFF` produces wrong values. Every JFFS2 node
 4. **First rootfs attempt** (`backdoored_full.bin`) — Windows tar extraction destroyed symlinks. Camera didn't boot.
 5. **Previous session firmware** (`backdoored_firmware.bin`) — Accidentally wrote modified data to kernel partition at 0x1B0000. Corrupted kernel, no boot.
 
-## TODO: Web Upload Root (No Chip Programmer)
+## TODO: Web/SD Upload Root — No Chip Programmer (UNTESTED)
+
+> **Status: UNTESTED** — The IronMan format and MTD mapping are confirmed, but nobody has tried uploading a crafted OTA package yet. Use at your own risk. The chip programmer method above is the only confirmed working method.
 
 The current method requires a CH341A chip programmer + SOIC-8 clip to flash the SPI chip directly. The goal is to make this work through the **standard web firmware upload** so anyone can root their camera without hardware tools.
 
@@ -191,13 +193,26 @@ Offset  Size    Content
 - No cryptographic signature verification — only MD5 integrity check
 - Same format works for web upload (HTTPS :443) and SD card (`/mnt/sd_card/JOOAN_FW_PKG`)
 
+### MTD device mapping (confirmed from live camera)
+
+```
+dev:    size   erasesize  name
+mtd0: 00040000 00008000 "boot"
+mtd1: 00008000 00008000 "bootenv"
+mtd2: 00170000 00008000 "kernel"
+mtd3: 002d0000 00008000 "rootfs"      ← target
+mtd4: 00310000 00008000 "appfs"       ← target
+mtd5: 00060000 00008000 "config"      ← target (JFFS2 persistence)
+mtd6: 00008000 00008000 "confbak"
+```
+
 ### What needs to happen
 
-1. **Map MTD devices** on the live camera (`cat /proc/mtd`) to determine which `/dev/mtdX` corresponds to rootfs, appfs, and config partitions
-2. **Build an OTA package** where `upgrade.sh` uses `flashcp` or `dd` to write our modified `rootfs_fixed.sqfs` and `appfs_fixed.sqfs` directly to the correct MTD partitions
+1. ~~**Map MTD devices**~~ — DONE (see above)
+2. **Build an OTA package** where `upgrade.sh` uses `flashcp` or `dd` to write our modified squashfs images to `/dev/mtd3` (rootfs), `/dev/mtd4` (appfs), and `/dev/mtd5` (config)
 3. **Test version validation** — does the camera reject "downgrades" or accept any version string?
 4. **Test ProductName validation** — does it check against the device model or accept anything?
-5. **Package everything** into a single IronMan file users can upload through the standard Jooan web interface at `https://<camera-ip>/upgrade.html`
+5. **Package everything** into a single IronMan file users can upload through the standard Jooan web interface or SD card
 
 ### Why this should work
 
